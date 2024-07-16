@@ -9,4 +9,4 @@ class ProductDetailResponse(Schema):
 
 
 class ProductListResponse(Schema):
-    product: List[ProductDetailResponse]
+    products: List[ProductDetailResponse]
