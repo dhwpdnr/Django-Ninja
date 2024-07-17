@@ -15,7 +15,7 @@ def product_list_handler(
 ):
     if query:
         products = Product.objects.filter(
-            search_vector=SearchQuery(query), status=ProductStatus.ACTIVE
+            name__contains=query, status=ProductStatus.ACTIVE
         )
 
     elif category_id:
