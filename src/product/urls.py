@@ -1,10 +1,16 @@
+from django.db import transaction
 from ninja import Router
 from django.http import HttpRequest
 from django.contrib.postgres.search import SearchQuery
-from .models import Product, ProductStatus, Category
-from .response import ProductListResponse, CategoryListResponse
-from shared.response import ObjectResponse, response
-from typing import List
+
+from user.authentication import bearer_auth, AuthRequest
+from .models import Product, ProductStatus, Category, Order, OrderLine
+from .request import OrderRequestBody
+from .response import ProductListResponse, CategoryListResponse, OrderDetailResponse
+from .exceptions import OrderInvalidProductException
+
+from shared.response import ObjectResponse, response, ErrorResponse, error_response
+from typing import List, Dict
 
 router = Router(tags=["Products"])
 
@@ -43,3 +49,49 @@ def category_list_handler(request: HttpRequest):
             categories=Category.objects.filter(parent=None).prefetch_related("children")
         )
     )
+
+
+@router.post(
+    "/orders",
+    response={
+        200: ObjectResponse[OrderDetailResponse],
+        400: ObjectResponse[ErrorResponse],
+    },
+    auth=bearer_auth,
+)
+def order_products_handler(request: AuthRequest, body: OrderRequestBody):
+    product_id_to_quantity: Dict[int, int] = body.product_id_to_quantity
+    products: List[Product] = list(
+        Product.objects.filter(id__in=product_id_to_quantity)
+    )
+
+    if len(products) != len(product_id_to_quantity):
+        return 400, error_response(msg=OrderInvalidProductException.message)
+
+    with transaction.atomic():
+        total_price: int = 0
+        order = Order.objects.create(user=request.user)
+
+        order_lines_to_create: List[OrderLine] = []
+
+        for product in products:
+            price: int = product.price
+            discount_ratio: float = 0.9
+            quantity: int = product_id_to_quantity[product.id]
+
+            order_lines_to_create.append(
+                OrderLine(
+                    order=order,
+                    product=product,
+                    quantity=quantity,
+                    price=price,
+                    discount_rate=discount_ratio,
+                )
+            )
+
+            total_price += price * quantity * discount_ratio
+
+        order.total_price = total_price
+        order.save()
+        OrderLine.objects.bulk_create(objs=order_lines_to_create)
+    return 201, response({"id": order.id, "total_price": order.total_price})
