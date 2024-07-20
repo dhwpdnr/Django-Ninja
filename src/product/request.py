@@ -16,3 +16,7 @@ class OrderRequestBody(Schema):
             order_line.product_id: order_line.quantity
             for order_line in self.order_lines
         }
+
+
+class OrderPaymentConfirmRequestBody(Schema):
+    payment_key: str
