@@ -8,3 +8,7 @@ class OrderNotFoundException(Exception):
 
 class OrderPaymentConfirmFailedException(Exception):
     message = "Payment confirmation failed"
+
+
+class OrderAlreadyPaidException(Exception):
+    message = "Order is already paid"

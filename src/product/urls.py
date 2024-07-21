@@ -16,6 +16,7 @@ from .exceptions import (
     OrderInvalidProductException,
     OrderNotFoundException,
     OrderPaymentConfirmFailedException,
+    OrderAlreadyPaidException,
 )
 from .service import payment_service
 
@@ -127,6 +128,11 @@ def confirm_order_payment_handler(
     ):
         return 400, error_response(msg=OrderPaymentConfirmFailedException.message)
 
-    order.status = OrderStatus.PAID
-    order.save()
+    if not Order.objects.filter(id=order_id, status=OrderStatus.PENDING).update(
+        status=OrderStatus.PAID
+    ):
+        return 400, error_response(msg=OrderAlreadyPaidException.message)
+
+    # 결제 완료 후 추가 작업
+
     return 200, response(OkResponse())
