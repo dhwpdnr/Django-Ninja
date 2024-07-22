@@ -1,9 +1,12 @@
 from django.db import transaction
 from ninja import Router
 from django.http import HttpRequest
+from django.db.models import F
 from django.contrib.postgres.search import SearchQuery
 
 from user.authentication import bearer_auth, AuthRequest
+from user.models import ServiceUser
+
 from .models import Product, ProductStatus, Category, Order, OrderLine, OrderStatus
 from .request import OrderRequestBody, OrderPaymentConfirmRequestBody
 from .response import (
@@ -128,11 +131,13 @@ def confirm_order_payment_handler(
     ):
         return 400, error_response(msg=OrderPaymentConfirmFailedException.message)
 
-    if not Order.objects.filter(id=order_id, status=OrderStatus.PENDING).update(
-        status=OrderStatus.PAID
-    ):
-        return 400, error_response(msg=OrderAlreadyPaidException.message)
+    with transaction.atomic():
 
-    # 결제 완료 후 추가 작업
-
+        if not Order.objects.filter(id=order_id, status=OrderStatus.PENDING).update(
+            status=OrderStatus.PAID
+        ):
+            return 400, error_response(msg=OrderAlreadyPaidException.message)
+        ServiceUser.objects.filter(id=request.user.id).update(
+            order_count=F("order_count") + 1
+        )
     return 200, response(OkResponse())
