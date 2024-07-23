@@ -12,3 +12,7 @@ class OrderPaymentConfirmFailedException(Exception):
 
 class OrderAlreadyPaidException(Exception):
     message = "Order is already paid"
+
+
+class UserPointsNotEnoughException(Exception):
+    message = "User points is not enough"

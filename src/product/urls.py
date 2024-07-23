@@ -20,6 +20,7 @@ from .exceptions import (
     OrderNotFoundException,
     OrderPaymentConfirmFailedException,
     OrderAlreadyPaidException,
+    UserPointsNotEnoughException,
 )
 from .service import payment_service
 
@@ -126,17 +127,25 @@ def confirm_order_payment_handler(
     if not (order := Order.objects.filter(id=order_id, user=request.user).first()):
         return 404, error_response(msg=OrderNotFoundException.message)
 
-    if not payment_service.confirm_payment(
-        payment_key=body.payment_key, amount=order.total_price
-    ):
-        return 400, error_response(msg=OrderPaymentConfirmFailedException.message)
+    # if not payment_service.confirm_payment(
+    #     payment_key=body.payment_key, amount=order.total_price
+    # ):
+    #     return 400, error_response(msg=OrderPaymentConfirmFailedException.message)
 
     with transaction.atomic():
+        success: int = Order.objects.filter(
+            id=order_id, status=OrderStatus.PENDING
+        ).update(status=OrderStatus.PAID)
 
-        if not Order.objects.filter(id=order_id, status=OrderStatus.PENDING).update(
-            status=OrderStatus.PAID
-        ):
+        if not success:
             return 400, error_response(msg=OrderAlreadyPaidException.message)
+
+        user = ServiceUser.objects.select_for_update().get(id=request.user.id)
+        if user.points < order.total_price:
+            return 409, error_response(msg=UserPointsNotEnoughException.message)
+        user.points -= order.total_price
+        user.save()
+
         ServiceUser.objects.filter(id=request.user.id).update(
             order_count=F("order_count") + 1
         )
