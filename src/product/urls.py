@@ -22,6 +22,7 @@ from .exceptions import (
     OrderAlreadyPaidException,
     UserPointsNotEnoughException,
 )
+from user.exceptions import UserVersionConflictException
 from .service import payment_service
 
 from shared.response import ObjectResponse, response, ErrorResponse, error_response
@@ -143,10 +144,15 @@ def confirm_order_payment_handler(
         user = ServiceUser.objects.select_for_update().get(id=request.user.id)
         if user.points < order.total_price:
             return 409, error_response(msg=UserPointsNotEnoughException.message)
-        user.points -= order.total_price
-        user.save()
 
-        ServiceUser.objects.filter(id=request.user.id).update(
-            order_count=F("order_count") + 1
+        success: int = ServiceUser.objects.filter(
+            id=request.user.id, version=user.version
+        ).update(
+            points=F("points") - order.total_price,
+            order_count=F("order_count") + 1,
+            version=user.version + 1,
         )
+
+        if not success:
+            return 409, error_response(msg=UserVersionConflictException.message)
     return 200, response(OkResponse())
