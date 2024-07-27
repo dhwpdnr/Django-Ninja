@@ -1,4 +1,5 @@
 from django.db import models
+from datetime import datetime
 
 
 class ServiceUser(models.Model):
@@ -13,3 +14,6 @@ class ServiceUser(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["email"], name="unique_email"),
         ]
+
+    def create_order_code(self) -> str:
+        return datetime.utcnow().strftime("%Y%m%d-%H%M%S") + f"{self.id}"
