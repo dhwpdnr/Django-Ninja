@@ -17,3 +17,16 @@ class ServiceUser(models.Model):
 
     def create_order_code(self) -> str:
         return datetime.utcnow().strftime("%Y%m%d-%H%M%S") + f"{self.id}"
+
+
+class UserPointsHistory(models.Model):
+    user = models.ForeignKey(
+        ServiceUser, on_delete=models.CASCADE, related_name="points_history"
+    )
+    points_change = models.IntegerField(default=0)
+    reason = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "user"
+        db_table = "user_points_history"

@@ -5,7 +5,7 @@ from django.db.models import F
 from django.contrib.postgres.search import SearchQuery
 
 from user.authentication import bearer_auth, AuthRequest
-from user.models import ServiceUser
+from user.models import ServiceUser, UserPointsHistory
 
 from .models import Product, ProductStatus, Category, Order, OrderLine, OrderStatus
 from .request import OrderRequestBody, OrderPaymentConfirmRequestBody
@@ -155,4 +155,8 @@ def confirm_order_payment_handler(
 
         if not success:
             return 409, error_response(msg=UserVersionConflictException.message)
+
+        UserPointsHistory.objects.create(
+            user=user, points=-order.total_price, reason=f"orders:{order.id}:confirm"
+        )
     return 200, response(OkResponse())
