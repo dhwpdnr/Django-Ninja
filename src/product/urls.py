@@ -5,7 +5,7 @@ from django.db.models import F
 from django.contrib.postgres.search import SearchQuery
 
 from user.authentication import bearer_auth, AuthRequest
-from user.models import ServiceUser, UserPointsHistory
+from user.models import ServiceUser, UserPointsHistory, UserPoints
 
 from .models import Product, ProductStatus, Category, Order, OrderLine, OrderStatus
 from .request import OrderRequestBody, OrderPaymentConfirmRequestBody
@@ -141,22 +141,18 @@ def confirm_order_payment_handler(
         if not success:
             return 400, error_response(msg=OrderAlreadyPaidException.message)
 
-        user = ServiceUser.objects.select_for_update().get(id=request.user.id)
-        if user.points < order.total_price:
-            return 409, error_response(msg=UserPointsNotEnoughException.message)
-
-        success: int = ServiceUser.objects.filter(
-            id=request.user.id, version=user.version
-        ).update(
-            points=F("points") - order.total_price,
-            order_count=F("order_count") + 1,
-            version=user.version + 1,
+        last_points = (
+            UserPoints.objects.filter(user=request.user).order_by("-id").first()
         )
 
-        if not success:
-            return 409, error_response(msg=UserVersionConflictException.message)
+        if last_points.points_sum < order.total_price:
+            return 400, error_response(msg=UserPointsNotEnoughException.message)
 
-        UserPointsHistory.objects.create(
-            user=user, points=-order.total_price, reason=f"orders:{order.id}:confirm"
+        UserPoints.objects.create(
+            user=request.user,
+            version=last_points.version + 1,
+            points_change=-order.total_price,
+            points_sum=last_points.points_sum - order.total_price,
         )
+
     return 200, response(OkResponse())
